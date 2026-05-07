@@ -606,9 +606,17 @@ currentPage = 1;
                     <td class="px-6 py-3 text-xs text-slate-500">${row.owner}</td>
                     <td class="px-6 py-3 text-center font-bold ${row.daysInUse > 30 ? 'text-red-600' : 'text-slate-700'}">${row.daysInUse}</td>
                     <td class="px-6 py-3 text-center">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm bg-red-600 text-white">${row.status}</span>
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm ${
+                        filters.status === 'Near Due'
+                            ? 'bg-yellow-500 text-white'
+                            : 'bg-red-600 text-white'
+                    }">
+                        ${filters.status === 'Near Due' ? 'NEAR DUE' : row.status}
+                    </span>
                     </td>
-                </tr>`).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">No overdue items found.</td></tr>';
+                </tr>`).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">${filters.status === 'Near Due'
+                    ? 'No near due items found.'
+                    : 'No overdue items found.'}</td></tr>';
         }
 
         function renderTable() {
