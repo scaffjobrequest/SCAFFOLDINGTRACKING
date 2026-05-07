@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scaffolding Tracker 2026 - Operational Dashboard</title>
+    
+    <!-- TAILWIND CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- CHART.JS -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- PAPAPARSE -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    
+    <!-- LUCIDE ICONS -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#1e293b' },
+                        // Clean Status Colors
+                        active: '#2563eb',   // Blue
+                        overdue: '#dc2626',  // Red
+                        complete: '#16a34a', // Green
+                        pending: '#ca8a04',  // Yellow
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        .custom-scrollbar::-webkit-scrollbar { width: 8px; height: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .fade-in { animation: fadeIn 0.5s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans antialiased flex flex-col min-h-screen">
+
+    <!-- LOADING OVERLAY -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white z-50 flex flex-col items-center justify-center transition-opacity duration-300">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mb-4"></div>
+        <p class="text-slate-500 font-medium animate-pulse">Connecting to Google Sheets...</p>
+    </div>
+
+    <!-- ERROR OVERLAY -->
+    <div id="errorOverlay" class="hidden fixed inset-0 bg-red-50 z-50 flex flex-col items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-xl shadow-xl max-w-lg text-center border border-red-100">
+            <i data-lucide="alert-octagon" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
+            <h2 class="text-2xl font-bold text-slate-800 mb-2">Data Access Error</h2>
+            <div id="errorDetails" class="text-left bg-slate-100 p-4 rounded-lg text-sm text-slate-600 mb-6 font-mono overflow-auto max-h-32"></div>
+            <p class="text-slate-500 mb-6">Please check your internet connection or the Google Sheet permissions.</p>
+            <button onclick="window.location.reload()" class="w-full px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                <i data-lucide="refresh-cw" class="w-4 h-4"></i> Retry Connection
+            </button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="app" class="flex-grow opacity-0 transition-opacity duration-500 flex flex-col">
+        
+        <!-- HEADER -->
+        <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 py-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div class="flex items-center gap-4">
+                    <div class="p-2 bg-blue-600 rounded-lg">
+                        <i data-lucide="layout-dashboard" class="w-8 h-8 text-white"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight leading-tight">Scaffolding Tracker</h1>
+                        <p class="text-blue-200 text-sm font-medium">External & Internal Area – Year 2026</p>
+                    </div>
+                </div>
+
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div class="hidden md:block text-right mr-2">
+                        <p class="text-xs text-slate-400">Last Synced</p>
+                        <p id="headerTimestamp" class="text-xs font-mono text-green-400 font-bold">--:--</p>
+                    </div>
+                    <button onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded text-sm font-medium transition">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i> <span class="hidden sm:inline">Refresh</span>
+                    </button>
+                    <button onclick="exportCSV()" class="flex items-center gap-2 bg-green-600 hover:bg-green-500 text-white px-3 py-2 rounded text-sm font-medium transition shadow-sm">
+                        <i data-lucide="download" class="w-4 h-4"></i> <span class="hidden sm:inline">Export</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <main class="max-w-7xl mx-auto px-4 py-6 space-y-6 w-full flex-grow">
+
+            <!-- MATERIAL STOCK SECTION (REAL-TIME FROM RAW_STOCK) -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center text-sm font-bold text-slate-700 uppercase tracking-wide">
+                        <i data-lucide="package" class="w-4 h-4 mr-2"></i> Material Stock Status
+                    </div>
+                    <span class="text-xs text-slate-400 font-medium">Source: Sheet 'Raw_Stock'</span>
+                </div>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                    <!-- Total (E49) -->
+                    <div class="bg-slate-50 rounded-lg p-3 border border-slate-200 flex flex-col justify-between">
+                        <p class="text-xs font-semibold text-slate-500 uppercase">Total Stock (E49)</p>
+                        <div class="flex items-end justify-between mt-1">
+                            <h3 class="text-2xl font-bold text-slate-700" id="matTotal">--</h3>
+                            <i data-lucide="box" class="w-5 h-5 text-slate-300"></i>
+                        </div>
+                    </div>
+                    <!-- Used (E46) -->
+                    <div class="bg-blue-50 rounded-lg p-3 border border-blue-100 flex flex-col justify-between">
+                        <p class="text-xs font-semibold text-blue-600 uppercase">Used On Site (E46)</p>
+                        <div class="flex items-end justify-between mt-1">
+                            <h3 class="text-2xl font-bold text-blue-600" id="matUsed">--</h3>
+                            <i data-lucide="activity" class="w-5 h-5 text-blue-300"></i>
+                        </div>
+                    </div>
+                    <!-- Damaged (E48) -->
+                    <div class="bg-red-50 rounded-lg p-3 border border-red-100 flex flex-col justify-between">
+                        <p class="text-xs font-semibold text-red-600 uppercase">Damaged (E48)</p>
+                        <div class="flex items-end justify-between mt-1">
+                            <h3 class="text-2xl font-bold text-red-600" id="matDamaged">--</h3>
+                            <i data-lucide="alert-triangle" class="w-5 h-5 text-red-300"></i>
+                        </div>
+                    </div>
+                    <!-- Available (E47) -->
+                    <div class="bg-green-50 rounded-lg p-3 border border-green-100 flex flex-col justify-between">
+                        <p class="text-xs font-semibold text-green-600 uppercase">Available (E47)</p>
+                        <div class="flex items-end justify-between mt-1">
+                            <h3 class="text-2xl font-bold text-green-600" id="matAvailable">--</h3>
+                            <i data-lucide="check-circle-2" class="w-5 h-5 text-green-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FILTERS -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 p-4">
+                <div class="flex flex-col md:flex-row items-center gap-4 flex-wrap">
+                    <div class="flex items-center text-sm font-semibold text-slate-700">
+                        <i data-lucide="filter" class="w-4 h-4 mr-2"></i> Filters:
+                    </div>
+
+                    <!-- Status Filter -->
+                    <div class="flex bg-slate-100 rounded-lg p-1" id="statusFilters">
+                        <button class="status-btn active px-3 py-1 text-xs rounded-md font-medium transition bg-white text-blue-700 shadow-sm" data-val="All">All</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Active">Active</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Overdue">Overdue</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Complete">Complete</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button>
+                    </div>
+
+                    <!-- Location Filter -->
+                    <div class="h-6 w-px bg-slate-200 mx-1 hidden md:block"></div>
+                    <select id="locationFilter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg p-2 outline-none cursor-pointer hover:border-blue-300 transition">
+                        <option value="All">All Locations</option>
+                        <option value="External">External</option>
+                        <option value="Internal">Internal</option>
+                    </select>
+
+                    <select id="areaFilter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg p-2 outline-none cursor-pointer hover:border-blue-300 transition">
+                        <option value="All">All Areas</option>
+                    </select>
+                    <select id="ownerFilter" class="bg-slate-50 border border-slate-200 text-slate-700 text-xs rounded-lg p-2 outline-none cursor-pointer hover:border-blue-300 transition">
+                        <option value="All">All Owners</option>
+                    </select>
+                    
+                    <div class="relative flex-grow md:flex-grow-0 ml-auto w-full md:w-auto">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"></i>
+                        <input type="text" id="searchInput" placeholder="Search WO..." 
+                               class="w-full md:w-64 bg-slate-50 border border-slate-200 text-slate-800 text-sm rounded-lg pl-9 pr-3 py-1.5 focus:ring-1 focus:ring-blue-500 outline-none transition">
+                    </div>
+                </div>
+            </div>
+
+            <!-- DYNAMIC KPI GRID -->
+            <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+
+            <!-- ACTIONABILITY: TOP 10 URGENT -->
+            <div id="top10Container" class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
+                <div class="bg-red-50 px-6 py-3 border-b border-red-100 flex justify-between items-center">
+                    <h3 class="font-bold text-red-800 flex items-center text-sm">
+                        <i data-lucide="siren" class="w-4 h-4 mr-2"></i> Top 10 Longest Overdue
+                    </h3>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-sm">
+                        <thead class="bg-red-50/50 text-red-900 uppercase font-bold text-xs">
+                            <tr>
+                                <th class="px-6 py-3">Work Order</th>
+                                <th class="px-6 py-3">Location</th>
+                                <th class="px-6 py-3">Area</th>
+                                <th class="px-6 py-3">Description</th> <!-- Added Description Header -->
+                                <th class="px-6 py-3">Owner</th>
+                                <th class="px-6 py-3 text-center">Days In Use</th>
+                                <th class="px-6 py-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="top10Body" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- CHARTS ROW 1 -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 lg:col-span-2">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                        <i data-lucide="bar-chart-2" class="w-4 h-4 mr-2"></i> Qty by Area
+                    </h3>
+                    <div class="relative h-64 w-full"><canvas id="areaChart"></canvas></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4 flex items-center">
+                        <i data-lucide="pie-chart" class="w-4 h-4 mr-2"></i> Status Distribution
+                    </h3>
+                    <div class="relative h-64 w-full flex justify-center"><canvas id="statusChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- CHARTS ROW 2 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4">Qty by Owner</h3>
+                    <div class="relative h-64 w-full"><canvas id="ownerChart"></canvas></div>
+                </div>
+                <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+                    <h3 class="text-sm font-bold text-slate-700 mb-4">Aging Analysis</h3>
+                    <div class="relative h-64 w-full"><canvas id="agingChart"></canvas></div>
+                </div>
+            </div>
+
+            <!-- FULL TABLE -->
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center text-sm">
+                    <h3 class="font-bold text-slate-700">Detailed Record</h3>
+                    <div id="paginationControls" class="mr-4"></div><span class="text-xs text-slate-500" id="tableCount">Showing 0 entries</span>
+                </div>
+                <div class="overflow-x-auto custom-scrollbar">
+                    <table class="w-full text-left text-sm text-slate-600">
+                        <thead class="bg-slate-100 text-slate-700 uppercase font-semibold text-xs">
+                            <tr>
+                                <th class="px-6 py-3">Work Order</th>
+                                <th class="px-6 py-3">Location</th>
+                                <th class="px-6 py-3">Area</th>
+                                <th class="px-6 py-3">Description</th>
+                                <th class="px-6 py-3">Owner / Contractor</th>
+                                <th class="px-6 py-3 text-center">Days In Use</th>
+                                <th class="px-6 py-3 text-right">Qty</th>
+                                <th class="px-6 py-3 text-center">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+        </main>
+
+        <footer class="bg-slate-900 text-slate-400 text-xs py-6 mt-6 border-t border-slate-800">
+            <div class="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-4">
+                <div>
+                    <p class="font-semibold text-slate-200">Scaffolding Management System v5.3</p>
+                    <p>Dashboard Owner: Facility Engineering</p>
+                </div>
+                <div class="text-right">
+                    <p>Data Source: Google Sheets (Updated Daily)</p>
+                    <p id="footerTimestamp">Last sync: --</p>
+                </div>
+            </div>
+        </footer>
+
+    </div>
+
+    <script>
+        const CONFIG = {
+            // 1. MAIN DATA: Work Orders List
+            mainDataUrl: 'https://docs.google.com/spreadsheets/d/1VS6ldjK7X1IF0ulWCBc359LtWzJ9-3xu8Y1DjXeDZ7g/export?format=csv',
+            
+            // 2. STOCK DATA: Sheet 'Raw_Stock' (Using your GID link)
+            stockDataUrl: 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTCzuSAu61wXj30lzc0nM8BfpbMlKdGLPVImodNaOO2Me_nBPdlrEX8vs2gYsMN1RwhQIwIzifzTVnL/pub?gid=1597735701&single=true&output=csv',
+
+            colors: { active: '#3b82f6', complete: '#22c55e', overdue: '#ef4444', warning: '#f59e0b', pending: '#ca8a04' },
+            thaiMonths: { 'ม.ค.': 'Jan', 'ก.พ.': 'Feb', 'มี.ค.': 'Mar', 'เม.ย.': 'Apr', 'พ.ค.': 'May', 'มิ.ย.': 'Jun', 'ก.ค.': 'Jul', 'ส.ค.': 'Aug', 'ก.ย.': 'Sep', 'ต.ค.': 'Oct', 'พ.ย.': 'Nov', 'ธ.ค.': 'Dec' }
+        };
+
+        let rawData = [], filteredData = [], contextData = [], charts = {};
+        let filters = { status: 'All', area: 'All', owner: 'All', location: 'All', search: '' };
+	let currentPage = 1;
+const itemsPerPage = 20;
+
+        window.onload = function() { lucide.createIcons(); fetchAllData(); setupEventListeners(); };
+
+        function fetchAllData() {
+            toggleLoading(true); toggleError(false);
+            
+            // 1. Fetch Main Data
+            Papa.parse(CONFIG.mainDataUrl, {
+                download: true, header: false, skipEmptyLines: true,
+                complete: (results) => {
+                    try {
+                        if (!results.data || results.data.length === 0) throw new Error("Received empty data.");
+                        processMainData(results.data);
+                        updateUI();
+                        updateTimestamps();
+                        toggleLoading(false);
+                    } catch (err) { showError(err.message); }
+                },
+                error: (err) => showError(`Main Data Error: ${err.message}`)
+            });
+
+            // 2. Fetch Stock Data (Raw_Stock)
+            Papa.parse(CONFIG.stockDataUrl, {
+                download: true, header: false, skipEmptyLines: true,
+                complete: (results) => {
+                    processStockData(results.data);
+                },
+                error: (err) => console.error("Stock Data Error:", err)
+            });
+        }
+
+        // --- STOCK DATA LOGIC (Extract E46, E47, E48, E58) ---
+        function processStockData(rows) {
+            // E is the 5th column (Index 4)
+            // Row 46 is Index 45 (0-based)
+            try {
+                if (rows.length < 50) { console.warn("Stock sheet data too short"); return; }
+
+                const p = (r, c) => {
+                    if (!rows[r] || !rows[r][c]) return 0;
+                    return parseInt(rows[r][c].replace(/,/g, '').trim()) || 0;
+                }
+
+                // Indices: Row - 1 (0-based)
+                const used = p(45, 4);      // E46
+                const available = p(46, 4); // E47
+                const damaged = p(47, 4);   // E48
+                const total = p(57, 4);     // E58
+
+                document.getElementById('matTotal').innerText = total.toLocaleString();
+                document.getElementById('matUsed').innerText = used.toLocaleString();
+                document.getElementById('matDamaged').innerText = damaged.toLocaleString();
+                document.getElementById('matAvailable').innerText = available.toLocaleString();
+            } catch(e) { console.error("Stock parsing error:", e); }
+        }
+
+        // --- MAIN DATA LOGIC ---
+        function processMainData(rows) {
+            let headerIndex = rows.findIndex(r => r.includes('Work Order') && r.includes('Status'));
+            if(headerIndex === -1) throw new Error("Critical columns missing. Ensure header has 'Work Order' and 'Status'.");
+            const headers = rows[headerIndex].map(h => h.trim());
+            const col = {
+                wo: headers.indexOf('Work Order'), desc: headers.indexOf('Description'), 
+                area: headers.indexOf('Area'), loc: headers.indexOf('Location'),
+                owner: headers.indexOf('Owner (Area)'), contr: headers.indexOf('Contractor'),
+
+                type: headers.indexOf('Type'),
+
+                install: headers.indexOf('Install Date'), rem: headers.indexOf('Expected Remove Date'), 
+                days: headers.indexOf('Days in Use'), qty: headers.indexOf("Q'ty"),
+                status: headers.indexOf('Status')
+            };
+
+            rawData = rows.slice(headerIndex + 1).map(row => {
+                const installDateRaw = row[col.install];
+                const installDate = parseThaiDate(installDateRaw);
+                const removeDate = parseThaiDate(row[col.rem]);
+                const daysInUse = parseInt(row[col.days]) || 0;
+                const qty = parseInt(row[col.qty]) || 0;
+                const area = row[col.area] || 'Unknown';
+                const location = row[col.loc] || 'Unknown';
+                
+                let status = 'Active';
+                
+                if (!installDateRaw || installDateRaw.trim() === '') {
+                    status = 'Pending';
+                } else {
+                    const rs = (row[col.status] || '').toLowerCase();
+                    if (rs.includes('complete') || rs.includes('🏁')) status = 'Complete';
+                    else if (rs.includes('overdue') || rs.includes('🔴')) status = 'Overdue';
+                    else if (rs.includes('pending') || rs.includes('⏳')) status = 'Pending';
+                    else {
+                        let expected = 0;
+                        if (installDate && removeDate) expected = Math.ceil(Math.abs(removeDate - installDate) / 86400000);
+                        if (expected > 0 && daysInUse > expected) status = 'Overdue';
+                    }
+                }
+
+                const workType = (row[col.type] || '').trim().toUpperCase();
+
+                let nearDue = false;
+
+                if (status === 'Active') {
+
+                    if (workType === 'CM' && daysInUse >= 11) {
+                        nearDue = true;
+                    }
+
+                    else if (workType === 'SD' && daysInUse >= 5) {
+                        nearDue = true;
+                    }
+
+                    else if (workType === 'ANSD' && daysInUse >= 25) {
+                        nearDue = true;
+                    }
+
+                    else if (workType === 'QSD' && daysInUse >= 12) {
+                        nearDue = true;
+                    }
+
+                    else if (workType === 'BD' && daysInUse >= 2) {
+                        nearDue = true;
+                    }
+                }
+
+                let aging = 'N/A';
+                if (status === 'Overdue' || status === 'Active') {
+                    if (daysInUse <= 7) aging = '0-7 Days';
+                    else if (daysInUse <= 14) aging = '8-14 Days';
+                    else if (daysInUse <= 30) aging = '15-30 Days';
+                    else aging = '> 30 Days';
+                }
+
+                return { 
+                    workOrder: row[col.wo], description: row[col.desc], 
+                    area, location, owner: row[col.owner] || 'Unknown', 
+                    contractor: row[col.contr] || 'Unknown',
+
+                    workType,
+
+                    daysInUse, qty, status,
+
+                    nearDue,
+
+                    agingBucket: aging 
+                };
+            }).filter(d => d.workOrder);
+            
+            populateSelect('areaFilter', [...new Set(rawData.map(d => d.area))].sort());
+            populateSelect('ownerFilter', [...new Set(rawData.map(d => d.owner))].sort());
+        }
+
+        function updateUI() {
+currentPage = 1;
+            contextData = rawData.filter(item => {
+                return (filters.area === 'All' || item.area === filters.area) &&
+                       (filters.owner === 'All' || item.owner === filters.owner) &&
+                       (filters.location === 'All' || item.location === filters.location) &&
+                       (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
+            });
+
+            filteredData = contextData.filter(item => {
+                return (filters.status === 'All' || item.status === filters.status);
+            });
+
+            renderKPIs(); 
+            renderTop10(); 
+            renderTable(); 
+            renderCharts();
+        }
+
+        function createKPICard(title, value, subtext, icon, colorClass, trendText='', trendClass='', styleType = 'neutral') {
+            let valueClass = 'text-slate-800';
+            if (styleType === 'primaryUrgency') valueClass = 'text-red-600'; 
+            else if (styleType === 'secondaryUrgency') valueClass = 'text-orange-700';
+            
+            return `
+            <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-4 flex flex-col justify-between fade-in relative overflow-hidden">
+                <div class="flex justify-between items-start">
+                    <div>
+                        <p class="text-xs font-bold uppercase tracking-wider text-slate-500">${title}</p>
+                        <h3 class="text-3xl font-bold ${valueClass} mt-1">${value}</h3>
+                    </div>
+                    <div class="p-2 rounded-lg ${colorClass} bg-opacity-10">
+                        <i data-lucide="${icon}" class="w-6 h-6 ${colorClass.replace('bg-', 'text-')}"></i>
+                    </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                    <p class="text-xs text-slate-400">${subtext}</p>
+                    ${trendText ? `<span class="text-xs font-bold px-2 py-0.5 rounded ${trendClass}">${trendText}</span>` : ''}
+                </div>
+            </div>`;
+        }
+
+        function renderKPIs() {
+            const container = document.getElementById('kpiGrid');
+            let html = '';
+
+            const overdueContext = contextData.filter(d => d.status === 'Overdue');
+            const activeContext = contextData.filter(d => d.status === 'Active');
+            const completeContext = contextData.filter(d => d.status === 'Complete');
+            const pendingContext = contextData.filter(d => d.status === 'Pending');
+            const nearDueContext = contextData.filter(d => d.nearDue);
+            
+            const operationalContext = activeContext.length + overdueContext.length + completeContext.length || 1;
+            
+            // Calculate Total Quantity for context (including Pending) - This fixes the 24,367 mismatch
+            const totalQty = contextData.reduce((a, b) => a + b.qty, 0);
+
+            const status = filters.status;
+
+            if (status === 'All') {
+                const overdueRate = ((overdueContext.length / operationalContext) * 100).toFixed(1);
+                const criticalCount = overdueContext.filter(d => d.daysInUse > 30).length;
+                const overdueQty = overdueContext.reduce((a, b) => a + b.qty, 0);
+                
+                html += createKPICard('Overdue Rate', `${overdueRate}%`, 'Overdue Risk Level', 'percent', 'bg-slate-200', overdueRate > 5 ? 'High' : 'Normal', overdueRate > 5 ? 'text-red-600 bg-red-50' : 'text-green-600 bg-green-50', 'primaryUrgency');
+                html += createKPICard('Overdue Quantity', overdueQty.toLocaleString(), `${overdueContext.length} Items`, 'alert-triangle', 'bg-red-500', '', '', 'secondaryUrgency');
+                html += createKPICard('Overall Quantity', totalQty.toLocaleString(), 'System Total', 'layers', 'bg-slate-500', '', '', 'neutral');
+                html += createKPICard('Critical (>30 Days)', criticalCount, 'Immediate Action', 'alert-circle', 'bg-red-500', '', '', 'secondaryUrgency');
+
+                html += createKPICard(
+                    'Near Due',
+                    nearDueContext.length,
+                    'Close to Overdue',
+                    'alarm-clock',
+                    'bg-yellow-500',
+                    '',
+                    '',
+                    'secondaryUrgency'
+                );
+
+            } else if (status === 'Overdue') {
+                const overdueRate = ((overdueContext.length / operationalContext) * 100).toFixed(1);
+                const criticalCount = filteredData.filter(d => d.daysInUse > 30).length;
+                const overdueQty = filteredData.reduce((a, b) => a + b.qty, 0);
+
+                html += createKPICard('Overdue Rate', `${overdueRate}%`, 'Overdue Risk Level', 'percent', 'bg-red-500', 'Target < 5%', 'bg-slate-100 text-slate-500', 'primaryUrgency');
+                html += createKPICard('Total Overdue', filteredData.length, `${overdueQty.toLocaleString()} Qty`, 'alert-triangle', 'bg-red-500', '', '', 'secondaryUrgency'); 
+                html += createKPICard('Critical (>30 Days)', criticalCount, 'Priority Removal', 'flame', 'bg-red-600', '', '', 'secondaryUrgency');
+                
+            } else if (status === 'Active') {
+                const activeRate = ((activeContext.length / operationalContext) * 100).toFixed(1);
+                const activeQty = filteredData.reduce((a, b) => a + b.qty, 0);
+
+                html += createKPICard('Active Rate', `${activeRate}%`, 'Utilization', 'percent', 'bg-blue-500');
+                html += createKPICard('Active Quantity', activeQty.toLocaleString(), `${filteredData.length} Items`, 'package', 'bg-blue-500');
+
+            } else if (status === 'Complete') {
+                const completeRate = ((completeContext.length / operationalContext) * 100).toFixed(1);
+                const completeQty = filteredData.reduce((a, b) => a + b.qty, 0);
+
+                html += createKPICard('Completion Rate', `${completeRate}%`, 'Efficiency', 'check-circle', 'bg-green-500');
+                html += createKPICard('Completed Jobs', filteredData.length, `${completeQty.toLocaleString()} Qty Returned`, 'archive', 'bg-green-500');
+
+            } else if (status === 'Pending') {
+                const pendingQty = filteredData.reduce((a, b) => a + b.qty, 0);
+                html += createKPICard('Pending Items', filteredData.length, 'Not Started', 'clock', 'bg-yellow-500');
+                html += createKPICard('Pending Quantity', pendingQty.toLocaleString(), 'Material Reserved', 'package', 'bg-yellow-500');
+            }
+
+            container.innerHTML = html;
+            lucide.createIcons();
+        }
+
+        function getLocBadge(loc) {
+            if(loc === 'External') return '<span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-cyan-100 text-cyan-800 rounded">EXT</span>';
+            if(loc === 'Internal') return '<span class="px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-purple-100 text-purple-800 rounded">INT</span>';
+            return `<span class="text-xs text-slate-400">${loc}</span>`;
+        }
+
+        function renderTop10() {
+            const container = document.getElementById('top10Container');
+            const tbody = document.getElementById('top10Body');
+            
+            if (filters.status === 'Active' || filters.status === 'Complete' || filters.status === 'Pending') {
+                container.classList.add('hidden');
+                return;
+            } else {
+                container.classList.remove('hidden');
+            }
+            
+            const list = filteredData.filter(d => d.status === 'Overdue').sort((a,b) => b.daysInUse - a.daysInUse).slice(0, 10);
+
+            tbody.innerHTML = list.length ? list.map(row => `
+                <tr class="hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
+                    <td class="px-6 py-3 font-medium text-slate-900">${row.workOrder}</td>
+                    <td class="px-6 py-3">${getLocBadge(row.location)}</td>
+                    <td class="px-6 py-3">${row.area}</td>
+                    <td class="px-6 py-3 text-xs text-slate-500 truncate max-w-xs">${row.description}</td>
+                    <td class="px-6 py-3 text-xs text-slate-500">${row.owner}</td>
+                    <td class="px-6 py-3 text-center font-bold ${row.daysInUse > 30 ? 'text-red-600' : 'text-slate-700'}">${row.daysInUse}</td>
+                    <td class="px-6 py-3 text-center">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm bg-red-600 text-white">${row.status}</span>
+                    </td>
+                </tr>`).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">No overdue items found.</td></tr>';
+        }
+
+        function renderTable() {
+    const tbody = document.getElementById('tableBody');
+    
+    // --- ตั้งค่า Pagination ---
+    // ใช้ currentPage (ที่ประกาศไว้บรรทัดที่ 261) แทน window.currentPage
+    const start = (currentPage - 1) * itemsPerPage;
+    const end = start + itemsPerPage;
+    const pageData = filteredData.slice(start, end);
+    const totalPages = Math.ceil(filteredData.length / itemsPerPage) || 1;
+
+    // --- ส่วนวาดตาราง ---
+    tbody.innerHTML = pageData.map(row => {
+        let badgeClass = 'bg-blue-100 text-blue-700';
+        if(row.status === 'Overdue') badgeClass = 'bg-red-100 text-red-700';
+        else if(row.status === 'Complete') badgeClass = 'bg-green-100 text-green-700';
+        else if(row.status === 'Pending') badgeClass = 'bg-yellow-100 text-yellow-800';
+
+        return `
+        <tr class="hover:bg-slate-50 border-b border-slate-50 transition-colors">
+            <td class="px-6 py-3 font-medium text-slate-900">${row.workOrder}</td>
+            <td class="px-6 py-3">${getLocBadge(row.location)}</td>
+            <td class="px-6 py-3">${row.area}</td>
+            <td class="px-6 py-3 text-xs text-slate-500 truncate max-w-xs">${row.description}</td>
+            <td class="px-6 py-3 text-xs">${row.owner}</td>
+            <td class="px-6 py-3 text-center ${row.daysInUse > 30 && row.status !== 'Complete' ? 'text-red-600 font-bold' : ''}">${row.daysInUse}</td>
+            <td class="px-6 py-3 text-right font-mono text-xs">${row.qty}</td>
+            <td class="px-6 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-bold ${badgeClass}">${row.status}</span></td>
+        </tr>`
+    }).join('');
+
+    // --- อัปเดตตัวเลขหน้า (แก้ปัญหา NaN) ---
+    document.getElementById('tableCount').innerText = `Page ${currentPage} of ${totalPages} (Total ${filteredData.length} items)`;
+
+    // --- สร้างปุ่ม Prev/Next ---
+    const pContainer = document.getElementById('paginationControls');
+    if (pContainer) {
+        pContainer.innerHTML = `
+            <div class="flex gap-2 mr-4">
+                <button onclick="changePage(-1)" ${currentPage === 1 ? 'disabled' : ''} class="px-3 py-1 border rounded bg-white text-xs font-bold hover:bg-slate-50 disabled:opacity-30">PREV</button>
+                <button onclick="changePage(1)" ${currentPage === totalPages ? 'disabled' : ''} class="px-3 py-1 border rounded bg-white text-xs font-bold hover:bg-slate-50 disabled:opacity-30">NEXT</button>
+            </div>
+        `;
+    }
+}
+
+// และแก้ฟังก์ชัน changePage ให้เป็นแบบนี้ (เอา window. ออก)
+function changePage(step) {
+    currentPage += step;
+    renderTable();
+    document.getElementById('tableBody').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+        function renderCharts() {
+            const areaMap = {}; filteredData.forEach(d => areaMap[d.area] = (areaMap[d.area] || 0) + d.qty);
+            const ownerMap = {}; filteredData.forEach(d => ownerMap[d.owner] = (ownerMap[d.owner] || 0) + d.qty);
+            const statusMap = { 'Active': 0, 'Complete': 0, 'Overdue': 0, 'Pending': 0 }; filteredData.forEach(d => { if(statusMap[d.status] !== undefined) statusMap[d.status] += d.qty; });
+            const agingMap = { '0-7 Days': 0, '8-14 Days': 0, '15-30 Days': 0, '> 30 Days': 0 }; filteredData.forEach(d => { if(agingMap[d.agingBucket] !== undefined) agingMap[d.agingBucket] += d.qty; });
+
+            const create = (id, type, labels, data, bg, axis='x') => {
+                if(charts[id]) charts[id].destroy();
+                charts[id] = new Chart(document.getElementById(id), {
+                    type, data: { labels, datasets: [{ data, backgroundColor: bg, borderRadius: 4, borderWidth: 0 }] },
+                    options: { indexAxis: axis, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: type === 'doughnut', position: 'bottom' } }, scales: type !== 'doughnut' ? { [axis]: { grid: { display: false } } } : {} }
+                });
+            };
+
+            const sArea = Object.entries(areaMap).sort((a,b)=>b[1]-a[1]);
+            create('areaChart', 'bar', sArea.map(i=>i[0]), sArea.map(i=>i[1]), filters.status === 'Overdue' ? CONFIG.colors.overdue : (filters.status === 'Pending' ? CONFIG.colors.pending : CONFIG.colors.active), 'y');
+            create('statusChart', 'doughnut', Object.keys(statusMap), Object.values(statusMap), [CONFIG.colors.active, CONFIG.colors.complete, CONFIG.colors.overdue, CONFIG.colors.pending]);
+            const sOwner = Object.entries(ownerMap).sort((a,b)=>b[1]-a[1]);
+            create('ownerChart', 'bar', sOwner.map(i=>i[0]), sOwner.map(i=>i[1]), '#6366f1');
+            create('agingChart', 'bar', Object.keys(agingMap), Object.values(agingMap), CONFIG.colors.warning);
+        }
+
+        function parseThaiDate(str) {
+            if (!str) return null;
+            let s = str.trim();
+            Object.keys(CONFIG.thaiMonths).forEach(m => s = s.replace(m, CONFIG.thaiMonths[m]));
+            const d = new Date(s); return isNaN(d) ? null : d;
+        }
+
+        function toggleLoading(show) { document.getElementById('loadingOverlay').classList.toggle('hidden', !show); if(!show) document.getElementById('app').classList.remove('opacity-0'); }
+        function toggleError(show) { document.getElementById('errorOverlay').classList.toggle('hidden', !show); }
+        function showError(msg) { toggleLoading(false); toggleError(true); document.getElementById('errorDetails').innerText = msg; }
+        function updateTimestamps() { const ts = new Date().toLocaleString(); document.getElementById('headerTimestamp').innerText = ts; document.getElementById('footerTimestamp').innerText = `Last sync: ${ts}`; }
+        function populateSelect(id, items) { const sel = document.getElementById(id); const val = sel.value; sel.innerHTML = `<option value="All">All ${id.replace('Filter','')}</option>` + items.map(i => `<option value="${i}">${i}</option>`).join(''); sel.value = val; }
+        
+        function setupEventListeners() {
+            document.querySelectorAll('.status-btn').forEach(btn => btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.status-btn').forEach(b => b.className = 'status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700');
+                e.target.className = 'status-btn active px-3 py-1 text-xs rounded-md font-medium transition bg-white text-blue-700 shadow-sm';
+                filters.status = e.target.getAttribute('data-val'); updateUI();
+            }));
+            ['areaFilter', 'ownerFilter', 'locationFilter'].forEach(id => document.getElementById(id).addEventListener('change', e => { filters[id.replace('Filter','')] = e.target.value; updateUI(); }));
+            document.getElementById('searchInput').addEventListener('input', e => { filters.search = e.target.value.toLowerCase(); updateUI(); });
+        }
+
+        function exportCSV() {
+            if(!filteredData.length) return alert("No data");
+            const keys = ['workOrder','location','area','owner','contractor','daysInUse','qty','status'];
+            const csv = [keys.join(',')].concat(filteredData.map(d => keys.map(k => `"${d[k]}"`).join(','))).join('\n');
+            const link = document.createElement("a"); link.href = 'data:text/csv;charset=utf-8,' + encodeURI(csv);
+            link.download = `scaffolding_export_${new Date().toISOString().slice(0,10)}.csv`; link.click();
+        }
+    </script>
+</body>
+</html>
