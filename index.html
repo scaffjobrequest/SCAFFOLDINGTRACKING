@@ -516,16 +516,7 @@ currentPage = 1;
                 html += createKPICard('Overall Quantity', totalQty.toLocaleString(), 'System Total', 'layers', 'bg-slate-500', '', '', 'neutral');
                 html += createKPICard('Critical (>30 Days)', criticalCount, 'Immediate Action', 'alert-circle', 'bg-red-500', '', '', 'secondaryUrgency');
 
-                html += createKPICard(
-                    'Near Due',
-                    nearDueContext.length,
-                    'Close to Overdue',
-                    'alarm-clock',
-                    'bg-yellow-500',
-                    '',
-                    '',
-                    'secondaryUrgency'
-                );
+
 
             } else if (status === 'Overdue') {
                 const overdueRate = ((overdueContext.length / operationalContext) * 100).toFixed(1);
