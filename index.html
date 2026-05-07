@@ -156,6 +156,7 @@
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Overdue">Overdue</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Complete">Complete</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Near Due">Near Due</button>
                     </div>
 
                     <!-- Location Filter -->
@@ -457,7 +458,14 @@ currentPage = 1;
             });
 
             filteredData = contextData.filter(item => {
-                return (filters.status === 'All' || item.status === filters.status);
+
+                if (filters.status === 'All') return true;
+
+                if (filters.status === 'Near Due') {
+                    return item.nearDue === true;
+                }
+
+                return item.status === filters.status;
             });
 
             renderKPIs(); 
@@ -517,7 +525,6 @@ currentPage = 1;
                 html += createKPICard('Critical (>30 Days)', criticalCount, 'Immediate Action', 'alert-circle', 'bg-red-500', '', '', 'secondaryUrgency');
 
 
-
             } else if (status === 'Overdue') {
                 const overdueRate = ((overdueContext.length / operationalContext) * 100).toFixed(1);
                 const criticalCount = filteredData.filter(d => d.daysInUse > 30).length;
@@ -545,6 +552,26 @@ currentPage = 1;
                 const pendingQty = filteredData.reduce((a, b) => a + b.qty, 0);
                 html += createKPICard('Pending Items', filteredData.length, 'Not Started', 'clock', 'bg-yellow-500');
                 html += createKPICard('Pending Quantity', pendingQty.toLocaleString(), 'Material Reserved', 'package', 'bg-yellow-500');
+
+            } else if (status === 'Near Due') {
+
+                const nearQty = filteredData.reduce((a, b) => a + b.qty, 0);
+
+                html += createKPICard(
+                    'Near Due Jobs',
+                    filteredData.length,
+                    'Close to Overdue',
+                    'alarm-clock',
+                    'bg-yellow-500'
+                );
+
+                html += createKPICard(
+                    'Near Due Quantity',
+                    nearQty.toLocaleString(),
+                    'Need Follow Up',
+                    'package',
+                    'bg-yellow-500'
+                );
             }
 
             container.innerHTML = html;
