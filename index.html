@@ -155,7 +155,8 @@
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Active">Active</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Overdue">Overdue</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Complete">Complete</button>
-                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button>
+                        <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button> 
+						<button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Near Due">Near Due</button>
                     </div>
 
                     <!-- Location Filter -->
@@ -187,9 +188,7 @@
             <!-- ACTIONABILITY: TOP 10 URGENT -->
             <div id="top10Container" class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
                 <div class="bg-red-50 px-6 py-3 border-b border-red-100 flex justify-between items-center">
-                    <h3 class="font-bold text-red-800 flex items-center text-sm">
-                        <i data-lucide="siren" class="w-4 h-4 mr-2"></i> Top 10 Longest Overdue
-                    </h3>
+                    <h3 class="font-bold text-red-800 flex items-center text-sm"> <i data-lucide="siren" class="w-4 h-4 mr-2"></i> <span id="top10Title">Top 10 Longest Overdue</span> </h3>
                 </div>
                 <div class="overflow-x-auto custom-scrollbar">
                     <table class="w-full text-left text-sm">
@@ -456,9 +455,7 @@ currentPage = 1;
                        (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
             });
 
-            filteredData = contextData.filter(item => {
-                return (filters.status === 'All' || item.status === filters.status);
-            });
+            filteredData = contextData.filter(item => { if (filters.status === 'All') return true; if (filters.status === 'Near Due') { return item.nearDue === true; } return item.status === filters.status; });
 
             renderKPIs(); 
             renderTop10(); 
@@ -566,32 +563,7 @@ currentPage = 1;
             return `<span class="text-xs text-slate-400">${loc}</span>`;
         }
 
-        function renderTop10() {
-            const container = document.getElementById('top10Container');
-            const tbody = document.getElementById('top10Body');
-            
-            if (filters.status === 'Active' || filters.status === 'Complete' || filters.status === 'Pending') {
-                container.classList.add('hidden');
-                return;
-            } else {
-                container.classList.remove('hidden');
-            }
-            
-            const list = filteredData.filter(d => d.status === 'Overdue').sort((a,b) => b.daysInUse - a.daysInUse).slice(0, 10);
-
-            tbody.innerHTML = list.length ? list.map(row => `
-                <tr class="hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors">
-                    <td class="px-6 py-3 font-medium text-slate-900">${row.workOrder}</td>
-                    <td class="px-6 py-3">${getLocBadge(row.location)}</td>
-                    <td class="px-6 py-3">${row.area}</td>
-                    <td class="px-6 py-3 text-xs text-slate-500 truncate max-w-xs">${row.description}</td>
-                    <td class="px-6 py-3 text-xs text-slate-500">${row.owner}</td>
-                    <td class="px-6 py-3 text-center font-bold ${row.daysInUse > 30 ? 'text-red-600' : 'text-slate-700'}">${row.daysInUse}</td>
-                    <td class="px-6 py-3 text-center">
-                        <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm bg-red-600 text-white">${row.status}</span>
-                    </td>
-                </tr>`).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">No overdue items found.</td></tr>';
-        }
+        function renderTop10() { const container = document.getElementById('top10Container'); const tbody = document.getElementById('top10Body'); if ( filters.status === 'Active' || filters.status === 'Complete' || filters.status === 'Pending' ) { container.classList.add('hidden'); return; } else { container.classList.remove('hidden'); } let list = []; if (filters.status === 'Near Due') { document.getElementById('top10Title').innerText = 'Top 10 Near Due Jobs'; list = filteredData .filter(d => d.nearDue) .sort((a,b) => b.daysInUse - a.daysInUse) .slice(0, 10); } else { document.getElementById('top10Title').innerText = 'Top 10 Longest Overdue'; list = filteredData .filter(d => d.status === 'Overdue') .sort((a,b) => b.daysInUse - a.daysInUse) .slice(0, 10); } tbody.innerHTML = list.length ? list.map(row => ` <tr class="hover:bg-slate-50 border-b border-slate-50 last:border-0 transition-colors"> <td class="px-6 py-3 font-medium text-slate-900">${row.workOrder}</td> <td class="px-6 py-3">${getLocBadge(row.location)}</td> <td class="px-6 py-3">${row.area}</td> <td class="px-6 py-3 text-xs text-slate-500 truncate max-w-xs">${row.description}</td> <td class="px-6 py-3 text-xs text-slate-500">${row.owner}</td> <td class="px-6 py-3 text-center font-bold ${ row.daysInUse > 30 ? 'text-red-600' : 'text-slate-700' }"> ${row.daysInUse} </td> <td class="px-6 py-3 text-center"> ${ filters.status === 'Near Due' ? `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm bg-yellow-500 text-white"> NEAR DUE </span>` : `<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase shadow-sm bg-red-600 text-white"> OVERDUE </span>` } </td> </tr> `).join('') : '<tr><td colspan="7" class="p-4 text-center text-slate-400">No items found.</td></tr>'; }
 
         function renderTable() {
     const tbody = document.getElementById('tableBody');
