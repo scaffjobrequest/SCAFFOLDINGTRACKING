@@ -448,17 +448,38 @@ const itemsPerPage = 20;
         }
 
         ```javascript id="vx6v5p"
+```javascript id="0h3nfr"
 function updateUI() {
 
     currentPage = 1;
 
     contextData = rawData.filter(item => {
-
         return (filters.area === 'All' || item.area === filters.area) &&
                (filters.owner === 'All' || item.owner === filters.owner) &&
                (filters.location === 'All' || item.location === filters.location) &&
                (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
     });
+
+    if (filters.status === 'Near Due') {
+
+        filteredData = contextData.filter(item => item.nearDue === true);
+
+    } else if (filters.status === 'All') {
+
+        filteredData = contextData;
+
+    } else {
+
+        filteredData = contextData.filter(item => item.status === filters.status);
+    }
+
+    renderKPIs();
+    renderTop10();
+    renderTable();
+    renderCharts();
+}
+```
+
 
     if (filters.status === 'Near Due') {
 
