@@ -153,10 +153,11 @@
                     <div class="flex bg-slate-100 rounded-lg p-1" id="statusFilters">
                         <button class="status-btn active px-3 py-1 text-xs rounded-md font-medium transition bg-white text-blue-700 shadow-sm" data-val="All">All</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Active">Active</button>
+						<button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Near Due">Near Due</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Overdue">Overdue</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Complete">Complete</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button> 
-						<button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Near Due">Near Due</button>
+						
                     </div>
 
                     <!-- Location Filter -->
@@ -183,7 +184,7 @@
             </div>
 
             <!-- DYNAMIC KPI GRID -->
-            <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+            <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"></div>
 
             <!-- ACTIONABILITY: TOP 10 URGENT -->
             <div id="top10Container" class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
@@ -446,22 +447,37 @@ const itemsPerPage = 20;
             populateSelect('ownerFilter', [...new Set(rawData.map(d => d.owner))].sort());
         }
 
-        function updateUI() {
-currentPage = 1;
-            contextData = rawData.filter(item => {
-                return (filters.area === 'All' || item.area === filters.area) &&
-                       (filters.owner === 'All' || item.owner === filters.owner) &&
-                       (filters.location === 'All' || item.location === filters.location) &&
-                       (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
-            });
+        ```javascript id="vx6v5p"
+function updateUI() {
 
-            filteredData = contextData.filter(item => { if (filters.status === 'All') return true; if (filters.status === 'Near Due') { return item.nearDue === true; } return item.status === filters.status; });
+    currentPage = 1;
 
-            renderKPIs(); 
-            renderTop10(); 
-            renderTable(); 
-            renderCharts();
-        }
+    contextData = rawData.filter(item => {
+
+        return (filters.area === 'All' || item.area === filters.area) &&
+               (filters.owner === 'All' || item.owner === filters.owner) &&
+               (filters.location === 'All' || item.location === filters.location) &&
+               (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
+    });
+
+    if (filters.status === 'Near Due') {
+
+        filteredData = contextData.filter(item => item.nearDue === true);
+
+    } else if (filters.status === 'All') {
+
+        filteredData = contextData;
+
+    } else {
+
+        filteredData = contextData.filter(item => item.status === filters.status);
+    }
+
+    renderKPIs();
+    renderTop10();
+    renderTable();
+    renderCharts();
+}
 
         function createKPICard(title, value, subtext, icon, colorClass, trendText='', trendClass='', styleType = 'neutral') {
             let valueClass = 'text-slate-800';
