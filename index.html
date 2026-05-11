@@ -624,37 +624,142 @@ function changePage(step) {
 }
 
         function renderCharts() {
-            const areaMap = {}; filteredData.forEach(d => areaMap[d.area] = (areaMap[d.area] || 0) + d.qty);
-            const ownerMap = {}; filteredData.forEach(d => ownerMap[d.owner] = (ownerMap[d.owner] || 0) + d.qty);
-            const statusMap = { 'Active': 0, 'Complete': 0, 'Overdue': 0, 'Pending': 0 }; filteredData.forEach(d => { if(statusMap[d.status] !== undefined) statusMap[d.status] += d.qty; });
-            const agingMap = { '0-7 Days': 0, '8-14 Days': 0, '15-30 Days': 0, '> 30 Days': 0 }; filteredData.forEach(d => { if(agingMap[d.agingBucket] !== undefined) agingMap[d.agingBucket] += d.qty; });
+
+            const areaMap = {};
+            filteredData.forEach(d => {
+                areaMap[d.area] = (areaMap[d.area] || 0) + d.qty;
+            });
+
+            const ownerMap = {};
+            filteredData.forEach(d => {
+                ownerMap[d.owner] = (ownerMap[d.owner] || 0) + d.qty;
+            });
+
+            const statusMap = {
+                'Active': 0,
+                'Complete': 0,
+                'Overdue': 0,
+                'Pending': 0,
+                'Near Due': 0
+            };
+
+            filteredData.forEach(d => {
+
+                if (filters.status === 'Near Due') {
+                    statusMap['Near Due'] += d.qty;
+                } else {
+                    if (statusMap[d.status] !== undefined) {
+                        statusMap[d.status] += d.qty;
+                    }
+                }
+
+            });
+
+            const agingMap = {
+                '0-7 Days': 0,
+                '8-14 Days': 0,
+                '15-30 Days': 0,
+                '> 30 Days': 0
+            };
+
+            filteredData.forEach(d => {
+                if (agingMap[d.agingBucket] !== undefined) {
+                    agingMap[d.agingBucket] += d.qty;
+                }
+            });
 
             const create = (id, type, labels, data, bg, axis='x') => {
+
                 if(charts[id]) charts[id].destroy();
+
                 charts[id] = new Chart(document.getElementById(id), {
-                    type, data: { labels, datasets: [{ data, backgroundColor: bg, borderRadius: 4, borderWidth: 0 }] },
-                    options: { indexAxis: axis, responsive: true, maintainAspectRatio: false, plugins: { legend: { display: type === 'doughnut', position: 'bottom' } }, scales: type !== 'doughnut' ? { [axis]: { grid: { display: false } } } : {} }
+                    type,
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                            backgroundColor: bg,
+                            borderRadius: 4,
+                            borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        indexAxis: axis,
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: type === 'doughnut',
+                                position: 'bottom'
+                            }
+                        },
+                        scales: type !== 'doughnut'
+                            ? {
+                                [axis]: {
+                                    grid: {
+                                        display: false
+                                    }
+                                }
+                            }
+                            : {}
+                    }
                 });
             };
 
+            let chartColor = CONFIG.colors.active;
+
+            if (filters.status === 'Overdue') {
+                chartColor = CONFIG.colors.overdue;
+            }
+            else if (filters.status === 'Pending') {
+                chartColor = CONFIG.colors.pending;
+            }
+            else if (filters.status === 'Near Due') {
+                chartColor = CONFIG.colors.warning;
+            }
+
             const sArea = Object.entries(areaMap).sort((a,b)=>b[1]-a[1]);
-            create('areaChart', 'bar', sArea.map(i=>i[0]), sArea.map(i=>i[1]), filters.status === 'Overdue' ? CONFIG.colors.overdue : (filters.status === 'Pending' ? CONFIG.colors.pending : CONFIG.colors.active), 'y');
-            create('statusChart', 'doughnut', Object.keys(statusMap), Object.values(statusMap), [CONFIG.colors.active, CONFIG.colors.complete, CONFIG.colors.overdue, CONFIG.colors.pending]);
+
+            create(
+                'areaChart',
+                'bar',
+                sArea.map(i => i[0]),
+                sArea.map(i => i[1]),
+                chartColor,
+                'y'
+            );
+
+            create(
+                'statusChart',
+                'doughnut',
+                Object.keys(statusMap),
+                Object.values(statusMap),
+                [
+                    CONFIG.colors.active,
+                    CONFIG.colors.complete,
+                    CONFIG.colors.overdue,
+                    CONFIG.colors.pending,
+                    CONFIG.colors.warning
+                ]
+            );
+
             const sOwner = Object.entries(ownerMap).sort((a,b)=>b[1]-a[1]);
+
             create(
-    'ownerChart',
-    'bar',
-    sOwner.map(i => i[0]),
-    sOwner.map(i => i[1]),
-    chartColor
-);
+                'ownerChart',
+                'bar',
+                sOwner.map(i => i[0]),
+                sOwner.map(i => i[1]),
+                chartColor
+            );
+
             create(
-    'agingChart',
-    'bar',
-    Object.keys(agingMap),
-    Object.values(agingMap),
-    chartColor
-);
+                'agingChart',
+                'bar',
+                Object.keys(agingMap),
+                Object.values(agingMap),
+                chartColor
+            );
         }
 
         function parseThaiDate(str) {
