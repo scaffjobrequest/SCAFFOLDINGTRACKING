@@ -157,7 +157,6 @@
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Overdue">Overdue</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Complete">Complete</button>
                         <button class="status-btn px-3 py-1 text-xs rounded-md font-medium transition text-slate-500 hover:text-slate-700" data-val="Pending">Pending</button> 
-						
                     </div>
 
                     <!-- Location Filter -->
@@ -184,7 +183,7 @@
             </div>
 
             <!-- DYNAMIC KPI GRID -->
-            <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4"></div>
+            <div id="kpiGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4"></div>
 
             <!-- ACTIONABILITY: TOP 10 URGENT -->
             <div id="top10Container" class="bg-white rounded-xl shadow-sm border border-red-200 overflow-hidden">
@@ -447,58 +446,22 @@ const itemsPerPage = 20;
             populateSelect('ownerFilter', [...new Set(rawData.map(d => d.owner))].sort());
         }
 
-        ```javascript id="vx6v5p"
-```javascript id="0h3nfr"
-function updateUI() {
+        function updateUI() {
+currentPage = 1;
+            contextData = rawData.filter(item => {
+                return (filters.area === 'All' || item.area === filters.area) &&
+                       (filters.owner === 'All' || item.owner === filters.owner) &&
+                       (filters.location === 'All' || item.location === filters.location) &&
+                       (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
+            });
 
-    currentPage = 1;
+            filteredData = contextData.filter(item => { if (filters.status === 'All') return true; if (filters.status === 'Near Due') { return item.nearDue === true; } return item.status === filters.status; });
 
-    contextData = rawData.filter(item => {
-        return (filters.area === 'All' || item.area === filters.area) &&
-               (filters.owner === 'All' || item.owner === filters.owner) &&
-               (filters.location === 'All' || item.location === filters.location) &&
-               (!filters.search || item.workOrder.toLowerCase().includes(filters.search));
-    });
-
-    if (filters.status === 'Near Due') {
-
-        filteredData = contextData.filter(item => item.nearDue === true);
-
-    } else if (filters.status === 'All') {
-
-        filteredData = contextData;
-
-    } else {
-
-        filteredData = contextData.filter(item => item.status === filters.status);
-    }
-
-    renderKPIs();
-    renderTop10();
-    renderTable();
-    renderCharts();
-}
-```
-
-
-    if (filters.status === 'Near Due') {
-
-        filteredData = contextData.filter(item => item.nearDue === true);
-
-    } else if (filters.status === 'All') {
-
-        filteredData = contextData;
-
-    } else {
-
-        filteredData = contextData.filter(item => item.status === filters.status);
-    }
-
-    renderKPIs();
-    renderTop10();
-    renderTable();
-    renderCharts();
-}
+            renderKPIs(); 
+            renderTop10(); 
+            renderTable(); 
+            renderCharts();
+        }
 
         function createKPICard(title, value, subtext, icon, colorClass, trendText='', trendClass='', styleType = 'neutral') {
             let valueClass = 'text-slate-800';
@@ -615,6 +578,12 @@ function updateUI() {
     // --- ส่วนวาดตาราง ---
     tbody.innerHTML = pageData.map(row => {
         let badgeClass = 'bg-blue-100 text-blue-700';
+		let displayStatus = row.status;
+
+if (row.nearDue && filters.status === 'Near Due') {
+    badgeClass = 'bg-yellow-100 text-yellow-800';
+    displayStatus = 'Near Due';
+}
         if(row.status === 'Overdue') badgeClass = 'bg-red-100 text-red-700';
         else if(row.status === 'Complete') badgeClass = 'bg-green-100 text-green-700';
         else if(row.status === 'Pending') badgeClass = 'bg-yellow-100 text-yellow-800';
@@ -628,7 +597,7 @@ function updateUI() {
             <td class="px-6 py-3 text-xs">${row.owner}</td>
             <td class="px-6 py-3 text-center ${row.daysInUse > 30 && row.status !== 'Complete' ? 'text-red-600 font-bold' : ''}">${row.daysInUse}</td>
             <td class="px-6 py-3 text-right font-mono text-xs">${row.qty}</td>
-            <td class="px-6 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-bold ${badgeClass}">${row.status}</span></td>
+            <td class="px-6 py-3 text-center"><span class="px-2 py-1 rounded-full text-xs font-bold ${badgeClass}">${displayStatus}</span></td>
         </tr>`
     }).join('');
 
@@ -672,8 +641,20 @@ function changePage(step) {
             create('areaChart', 'bar', sArea.map(i=>i[0]), sArea.map(i=>i[1]), filters.status === 'Overdue' ? CONFIG.colors.overdue : (filters.status === 'Pending' ? CONFIG.colors.pending : CONFIG.colors.active), 'y');
             create('statusChart', 'doughnut', Object.keys(statusMap), Object.values(statusMap), [CONFIG.colors.active, CONFIG.colors.complete, CONFIG.colors.overdue, CONFIG.colors.pending]);
             const sOwner = Object.entries(ownerMap).sort((a,b)=>b[1]-a[1]);
-            create('ownerChart', 'bar', sOwner.map(i=>i[0]), sOwner.map(i=>i[1]), '#6366f1');
-            create('agingChart', 'bar', Object.keys(agingMap), Object.values(agingMap), CONFIG.colors.warning);
+            create(
+    'ownerChart',
+    'bar',
+    sOwner.map(i => i[0]),
+    sOwner.map(i => i[1]),
+    chartColor
+);
+            create(
+    'agingChart',
+    'bar',
+    Object.keys(agingMap),
+    Object.values(agingMap),
+    chartColor
+);
         }
 
         function parseThaiDate(str) {
